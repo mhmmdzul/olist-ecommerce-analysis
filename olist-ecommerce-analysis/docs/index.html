@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Olist E-Commerce Dashboard</title>
+<meta name="description" content="Interactive dashboard of 96K Olist marketplace orders: growth, delivery performance, customer retention and RFM segments.">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script src="data.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f4f4f1;
+    --surface: #fcfcfb;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --blue: #2a78d6;
+    --orange: #eb6834;
+    --neutral: #c3c2b7;
+    --chip: #e9e8e3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --text: #f0efec;
+      --text-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255,255,255,0.10);
+      --blue: #3987e5;
+      --orange: #d95926;
+      --neutral: #5d5c58;
+      --chip: #2a2a28;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 16px 48px; }
+  header h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--text-2); max-width: 760px; }
+  header a { color: var(--blue); }
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: end;
+    margin: 20px 0 16px; position: sticky; top: 0; z-index: 5;
+    background: var(--page); padding: 10px 0;
+  }
+  .filters label { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
+  select {
+    font: inherit; color: var(--text); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; min-width: 170px;
+  }
+  .scope { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+  }
+  .kpi .label { font-size: 12px; color: var(--text-2); }
+  .kpi .value { font-size: 24px; font-weight: 650; margin-top: 2px; }
+  .kpi .note { font-size: 11px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 8px;
+    min-width: 0;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { font-size: 15px; margin: 0; }
+  .card .sub { font-size: 12.5px; color: var(--text-2); margin: 2px 0 6px; }
+  .card-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; flex-wrap: wrap; }
+  .seg { display: inline-flex; background: var(--chip); border-radius: 8px; padding: 2px; }
+  .seg button {
+    font: inherit; font-size: 12px; border: 0; background: transparent; color: var(--text-2);
+    padding: 5px 10px; border-radius: 6px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--border); }
+  .chart { width: 100%; height: 320px; }
+  .badge { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+  .insights { margin-top: 12px; }
+  .insights ol { margin: 6px 0 4px; padding-left: 20px; }
+  .insights li { margin: 4px 0; color: var(--text-2); }
+  .insights b { color: var(--text); }
+  footer { margin-top: 20px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--text-2); }
+  @media (max-width: 980px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .scope { margin-left: 0; width: 100%; }
+    .kpi .value { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Olist E-Commerce Dashboard</h1>
+    <p>96,203 delivered orders from a Brazilian marketplace, Jan 2017 – Aug 2018. Filter by region or state to see how growth, delivery and satisfaction change.
+      Built with SQL (DuckDB) and Python · <a href="https://github.com/mhmmdzul/olist-ecommerce-analysis">source &amp; notebook</a></p>
+  </header>
+
+  <div class="filters" role="group" aria-label="Filters">
+    <label>Region
+      <select id="region"><option value="">All regions</option></select>
+    </label>
+    <label>State
+      <select id="state"><option value="">All states</option></select>
+    </label>
+    <span class="scope" id="scope"></span>
+  </div>
+
+  <section class="kpis" aria-label="Key figures">
+    <div class="kpi"><div class="label">Orders</div><div class="value" id="k-orders"></div><div class="note" id="k-orders-n"></div></div>
+    <div class="kpi"><div class="label">Revenue (BRL)</div><div class="value" id="k-rev"></div><div class="note">product + freight</div></div>
+    <div class="kpi"><div class="label">Avg order value</div><div class="value" id="k-aov"></div><div class="note">BRL</div></div>
+    <div class="kpi"><div class="label">Avg review</div><div class="value" id="k-review"></div><div class="note">out of 5</div></div>
+    <div class="kpi"><div class="label">Late deliveries</div><div class="value" id="k-late"></div><div class="note">after estimated date</div></div>
+    <div class="kpi"><div class="label">Avg delivery time</div><div class="value" id="k-days"></div><div class="note">purchase to door</div></div>
+  </section>
+
+  <section class="grid">
+    <div class="card wide">
+      <div class="card-head">
+        <div><h2 id="trend-title">Monthly revenue</h2><div class="sub" id="trend-sub"></div></div>
+        <div class="seg" role="group" aria-label="Metric">
+          <button data-metric="revenue" aria-pressed="true">Revenue</button>
+          <button data-metric="orders" aria-pressed="false">Orders</button>
+          <button data-metric="late" aria-pressed="false">Late %</button>
+          <button data-metric="review" aria-pressed="false">Avg review</button>
+        </div>
+      </div>
+      <div class="chart" id="c-trend"></div>
+    </div>
+
+    <div class="card">
+      <h2>Review score vs. delivery date</h2>
+      <div class="sub">Days delivered before (−) or after (+) the estimate. Ends capped at ±15.</div>
+      <div class="chart" id="c-delay"></div>
+    </div>
+
+    <div class="card">
+      <h2>Top 10 categories</h2>
+      <div class="sub">Share of product revenue in the current filter.</div>
+      <div class="chart" id="c-cat"></div>
+    </div>
+
+    <div class="card wide">
+      <h2>Delivery time and late rate by state</h2>
+      <div class="sub">Average days from purchase to delivery; hover for late rate, freight and review.</div>
+      <div class="chart" id="c-state"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>RFM customer segments</h2><span class="badge">all regions</span></div>
+      <div class="sub">Share of customers vs. share of revenue.</div>
+      <div class="chart" id="c-rfm"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Cohort retention</h2><span class="badge">all regions</span></div>
+      <div class="sub" id="repeat-sub"></div>
+      <div class="chart" id="c-cohort"></div>
+    </div>
+  </section>
+
+  <section class="card insights" aria-label="Key insights">
+    <h2>Key insights</h2>
+    <ol>
+      <li><b>Late delivery is the main driver of bad reviews.</b> On-time orders average 4.29 stars; late orders average 2.27, and 62% of them get 1–2 stars.</li>
+      <li><b>Logistics breaks at demand peaks.</b> The late rate jumped to 12% in Nov 2017 and 14–19% in Feb–Mar 2018.</li>
+      <li><b>Almost nobody buys twice.</b> Only 3% of customers return, so growth depends on new customers and stalled in 2018.</li>
+      <li><b>Two high-value RFM segments hold ~56% of revenue</b>: new big spenders (second-order offer) and lapsed big spenders (win-back).</li>
+      <li><b>North and Northeast are underserved:</b> ~2x longer delivery and freight at ~22% of the product price.</li>
+    </ol>
+  </section>
+
+  <footer>
+    Data: <a href="https://github.com/olist/work-at-olist-data">Olist public e-commerce dataset</a> (MIT licence). Revenue in Brazilian Real (BRL).
+    Analysis by Muhammad Zul Rezky Zaaki · <a href="https://mzulrezky-portfolio.vercel.app">portfolio</a>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const D = window.DASH_DATA;
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const T = () => ({ text: css("--text"), text2: css("--text-2"), muted: css("--muted"), grid: css("--grid"),
+                     axis: css("--axis"), blue: css("--blue"), orange: css("--orange"), neutral: css("--neutral"),
+                     surface: css("--surface") });
+  const fmtInt = (n) => Math.round(n).toLocaleString("en-US");
+  const fmtBRL = (n) => n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e3 ? (n / 1e3).toFixed(0) + "K" : n.toFixed(0);
+  const sum = (arr, k) => arr.reduce((a, r) => a + r[k], 0);
+  const cfg = { displayModeBar: false, responsive: true };
+
+  function baseLayout(t, extra) {
+    return Object.assign({
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+      font: { family: "system-ui, -apple-system, Segoe UI, sans-serif", size: 12, color: t.text2 },
+      margin: { l: 56, r: 16, t: 8, b: 40 },
+      hoverlabel: { bgcolor: t.surface, bordercolor: t.axis, font: { color: t.text } },
+      xaxis: { gridcolor: t.grid, linecolor: t.axis, tickcolor: t.axis, zeroline: false },
+      yaxis: { gridcolor: t.grid, linecolor: t.axis, zeroline: false },
+      showlegend: false,
+    }, extra || {});
+  }
+
+  // ----- filters -----
+  const regionSel = document.getElementById("region");
+  const stateSel = document.getElementById("state");
+  const regions = [...new Set(D.monthly.map((r) => r.region))].sort();
+  regions.forEach((r) => regionSel.add(new Option(r, r)));
+  function fillStates() {
+    const keep = stateSel.value;
+    const states = [...new Set(D.monthly.filter((r) => !regionSel.value || r.region === regionSel.value).map((r) => r.state))].sort();
+    stateSel.length = 1;
+    states.forEach((s) => stateSel.add(new Option(s, s)));
+    stateSel.value = states.includes(keep) ? keep : "";
+  }
+  const inScope = (r) => (!regionSel.value || r.region === regionSel.value) && (!stateSel.value || r.state === stateSel.value);
+
+  let metric = "revenue";
+  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
+    metric = b.dataset.metric;
+    document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    drawTrend();
+  }));
+
+  function rows() { return D.monthly.filter(inScope); }
+
+  // ----- KPIs -----
+  function drawKpis() {
+    const r = rows();
+    const orders = sum(r, "orders"), rev = sum(r, "revenue");
+    document.getElementById("k-orders").textContent = fmtInt(orders);
+    document.getElementById("k-orders-n").textContent = (100 * orders / sum(D.monthly, "orders")).toFixed(1) + "% of all orders";
+    document.getElementById("k-rev").textContent = fmtBRL(rev);
+    document.getElementById("k-aov").textContent = (rev / orders).toFixed(2);
+    document.getElementById("k-review").textContent = (sum(r, "review_sum") / sum(r, "review_n")).toFixed(2);
+    document.getElementById("k-late").textContent = (100 * sum(r, "late") / orders).toFixed(1) + "%";
+    document.getElementById("k-days").textContent = (sum(r, "delivery_days_sum") / orders).toFixed(1) + " days";
+    const scope = stateSel.value ? "State " + stateSel.value : regionSel.value ? regionSel.value + " region" : "All of Brazil";
+    document.getElementById("scope").textContent = "Showing: " + scope;
+  }
+
+  // ----- monthly trend -----
+  function drawTrend() {
+    const t = T(), byM = {};
+    rows().forEach((r) => {
+      const m = byM[r.month] || (byM[r.month] = { orders: 0, revenue: 0, late: 0, rs: 0, rn: 0 });
+      m.orders += r.orders; m.revenue += r.revenue; m.late += r.late; m.rs += r.review_sum; m.rn += r.review_n;
+    });
+    const months = Object.keys(byM).sort();
+    const M = {
+      revenue: { y: months.map((m) => byM[m].revenue), title: "Monthly revenue (BRL)", fmt: ",.0f", hover: "BRL %{y:,.0f}",
+                 sub: "Nationally, Black Friday (Nov 2017) is the peak month and growth flattens in 2018." },
+      orders: { y: months.map((m) => byM[m].orders), title: "Monthly orders", fmt: ",.0f", hover: "%{y:,} orders",
+                sub: "Delivered orders by purchase month." },
+      late: { y: months.map((m) => 100 * byM[m].late / byM[m].orders), title: "Late deliveries (% of orders)", fmt: ".0f", hover: "%{y:.1f}% late",
+              sub: "Nationally, late deliveries spike in Nov 2017 and Feb\u2013Mar 2018." },
+      review: { y: months.map((m) => byM[m].rs / byM[m].rn), title: "Average review score", fmt: ".1f", hover: "%{y:.2f} stars",
+                sub: "Reviews dip in the same months that late deliveries spike." },
+    }[metric];
+    document.getElementById("trend-title").textContent = M.title;
+    document.getElementById("trend-sub").textContent = M.sub;
+    const color = metric === "late" ? t.orange : t.blue;
+    Plotly.react("c-trend", [{
+      x: months.map((m) => m + "-01"), y: M.y, type: "scatter", mode: "lines+markers",
+      line: { color, width: 2 }, marker: { size: 6, color, line: { color: t.surface, width: 2 } },
+      hovertemplate: "%{x|%b %Y}<br>" + M.hover + "<extra></extra>",
+    }], baseLayout(t, {
+      hovermode: "x unified",
+      xaxis: { gridcolor: t.grid, linecolor: t.axis, tickformat: "%b %Y", zeroline: false },
+      yaxis: { gridcolor: t.grid, zeroline: false, tickformat: M.fmt, rangemode: metric === "review" ? "normal" : "tozero" },
+    }), cfg);
+  }
+
+  // ----- review vs delay -----
+  function drawDelay() {
+    const t = T(), by = {};
+    D.delay.filter(inScope).forEach((r) => {
+      const b = by[r.days_vs_estimate] || (by[r.days_vs_estimate] = { n: 0, s: 0 });
+      b.n += r.orders; b.s += r.review_sum;
+    });
+    const x = Object.keys(by).map(Number).sort((a, b) => a - b);
+    Plotly.react("c-delay", [{
+      x, y: x.map((d) => by[d].s / by[d].n), type: "bar",
+      marker: { color: x.map((d) => (d > 0 ? t.orange : t.blue)), line: { color: t.surface, width: 1 } },
+      customdata: x.map((d) => by[d].n),
+      hovertemplate: "%{x} days vs estimate<br>avg review %{y:.2f}<br>%{customdata:,} orders<extra></extra>",
+    }], baseLayout(t, {
+      bargap: 0.15,
+      xaxis: { gridcolor: "rgba(0,0,0,0)", linecolor: t.axis, title: { text: "days vs estimated date", font: { size: 11 } } },
+      yaxis: { gridcolor: t.grid, range: [1, 5], dtick: 1, zeroline: false },
+      shapes: [{ type: "line", x0: 0.5, x1: 0.5, y0: 1, y1: 5, line: { color: t.muted, width: 1, dash: "dot" } }],
+      annotations: [
+        { x: -1, y: 4.85, text: "on time", showarrow: false, xanchor: "right", font: { color: t.blue, size: 11 } },
+        { x: 2, y: 4.85, text: "late", showarrow: false, xanchor: "left", font: { color: t.orange, size: 11 } },
+      ],
+    }), cfg);
+  }
+
+  // ----- categories -----
+  function drawCat() {
+    const t = T(), by = {};
+    D.categories.filter(inScope).forEach((r) => { by[r.category] = (by[r.category] || 0) + r.revenue; });
+    const total = Object.values(by).reduce((a, b) => a + b, 0);
+    const top = Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 10).reverse();
+    Plotly.react("c-cat", [{
+      y: top.map(([c]) => c.replace(/_/g, " ")), x: top.map(([, v]) => 100 * v / total), type: "bar", orientation: "h",
+      marker: { color: t.blue }, text: top.map(([, v]) => (100 * v / total).toFixed(1) + "%"), textposition: "outside",
+      textfont: { color: t.text2, size: 11 }, cliponaxis: false,
+      customdata: top.map(([, v]) => v),
+      hovertemplate: "%{y}<br>%{x:.1f}% of revenue<br>BRL %{customdata:,.0f}<extra></extra>",
+    }], baseLayout(t, {
+      margin: { l: 150, r: 40, t: 8, b: 30 }, bargap: 0.3,
+      xaxis: { gridcolor: t.grid, linecolor: t.axis, ticksuffix: "%", zeroline: false },
+      yaxis: { gridcolor: "rgba(0,0,0,0)", linecolor: t.axis },
+    }), cfg);
+  }
+
+  // ----- states -----
+  function drawStates() {
+    const t = T(), by = {};
+    D.monthly.filter((r) => !regionSel.value || r.region === regionSel.value).forEach((r) => {
+      const s = by[r.state] || (by[r.state] = { o: 0, d: 0, l: 0, f: 0, p: 0, rs: 0, rn: 0 });
+      s.o += r.orders; s.d += r.delivery_days_sum; s.l += r.late; s.f += r.freight; s.p += r.product; s.rs += r.review_sum; s.rn += r.review_n;
+    });
+    const st = Object.keys(by).sort((a, b) => by[a].d / by[a].o - by[b].d / by[b].o);
+    Plotly.react("c-state", [{
+      x: st, y: st.map((s) => by[s].d / by[s].o), type: "bar",
+      marker: { color: st.map((s) => (s === stateSel.value || !stateSel.value ? t.blue : t.neutral)) },
+      customdata: st.map((s) => [by[s].o, 100 * by[s].l / by[s].o, 100 * by[s].f / by[s].p, by[s].rs / by[s].rn]),
+      hovertemplate: "<b>%{x}</b><br>%{y:.1f} days avg delivery<br>%{customdata[1]:.1f}% late<br>freight = %{customdata[2]:.0f}% of price<br>avg review %{customdata[3]:.2f}<br>%{customdata[0]:,} orders<extra></extra>",
+    }], baseLayout(t, {
+      bargap: 0.25,
+      xaxis: { gridcolor: "rgba(0,0,0,0)", linecolor: t.axis, type: "category" },
+      yaxis: { gridcolor: t.grid, zeroline: false, title: { text: "avg days", font: { size: 11 } } },
+    }), cfg);
+  }
+
+  // ----- RFM (global) -----
+  function drawRfm() {
+    const t = T();
+    const tc = sum(D.rfm, "customers"), tr = sum(D.rfm, "revenue");
+    const segs = [...D.rfm].sort((a, b) => a.revenue - b.revenue);
+    const y = segs.map((s) => s.segment);
+    const common = { type: "bar", orientation: "h", y, cliponaxis: false };
+    Plotly.react("c-rfm", [
+      Object.assign({}, common, { name: "% of customers", x: segs.map((s) => 100 * s.customers / tc), marker: { color: t.neutral },
+        customdata: segs.map((s) => s.customers), hovertemplate: "%{y}<br>%{x:.1f}% of customers (%{customdata:,})<extra></extra>" }),
+      Object.assign({}, common, { name: "% of revenue", x: segs.map((s) => 100 * s.revenue / tr), marker: { color: t.blue },
+        customdata: segs.map((s) => s.median_recency_days), hovertemplate: "%{y}<br>%{x:.1f}% of revenue<br>median %{customdata:.0f} days since last order<extra></extra>" }),
+    ], baseLayout(t, {
+      barmode: "group", bargap: 0.25, bargroupgap: 0.08, showlegend: true,
+      legend: { orientation: "h", x: 0, y: 1.12, font: { color: t.text2 } },
+      margin: { l: 140, r: 16, t: 28, b: 30 },
+      xaxis: { gridcolor: t.grid, linecolor: t.axis, ticksuffix: "%", zeroline: false },
+      yaxis: { gridcolor: "rgba(0,0,0,0)", linecolor: t.axis },
+    }), cfg);
+  }
+
+  // ----- cohort (global) -----
+  function drawCohort() {
+    const t = T();
+    const cohorts = [...new Set(D.cohort.map((r) => r.cohort))].sort();
+    const ks = [1, 2, 3, 4, 5, 6];
+    const z = cohorts.map((c) => ks.map((k) => { const r = D.cohort.find((x) => x.cohort === c && x.months_since_first === k); return r ? r.retention_pct : null; }));
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    Plotly.react("c-cohort", [{
+      z, x: ks.map((k) => "M+" + k), y: cohorts, type: "heatmap", zmin: 0, zmax: 1,
+      colorscale: dark ? [[0, "#1d2a3a"], [1, "#6da7ec"]] : [[0, "#eef4fc"], [1, "#1c5cab"]],
+      colorbar: { ticksuffix: "%", thickness: 10, outlinewidth: 0, tickfont: { color: t.muted } },
+      xgap: 2, ygap: 2, hovertemplate: "Cohort %{y}<br>%{x}: %{z:.2f}% bought again<extra></extra>",
+    }], baseLayout(t, {
+      margin: { l: 64, r: 8, t: 8, b: 30 },
+      xaxis: { gridcolor: "rgba(0,0,0,0)", linecolor: t.axis, side: "bottom" },
+      yaxis: { gridcolor: "rgba(0,0,0,0)", autorange: "reversed", type: "category" },
+    }), cfg);
+    const r = D.repeat;
+    document.getElementById("repeat-sub").textContent =
+      "% of each first-purchase cohort that buys again. Only " + r.repeat_rate_pct.toFixed(1) + "% of " + fmtInt(r.customers) + " customers ever order twice.";
+  }
+
+  function drawFiltered() { drawKpis(); drawTrend(); drawDelay(); drawCat(); drawStates(); }
+  function drawAll() { drawFiltered(); drawRfm(); drawCohort(); }
+
+  regionSel.addEventListener("change", () => { fillStates(); drawFiltered(); });
+  stateSel.addEventListener("change", () => {
+    if (stateSel.value && !regionSel.value) {
+      regionSel.value = D.monthly.find((r) => r.state === stateSel.value).region;
+      fillStates();
+    }
+    drawFiltered();
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+
+  fillStates();
+  drawAll();
+})();
+</script>
+</body>
+</html>
